@@ -12,10 +12,13 @@ from src.prompt import prompt
 load_dotenv()
 
 
+# --------------------------------------------------
+# Paths
+# --------------------------------------------------
+
 ROOT_DIR = os.path.dirname(
     os.path.dirname(os.path.abspath(__file__))
 )
-
 
 VECTORSTORE_PATH = os.path.join(
     ROOT_DIR,
@@ -23,10 +26,18 @@ VECTORSTORE_PATH = os.path.join(
 )
 
 
+# --------------------------------------------------
+# Embedding model
+# --------------------------------------------------
+
 embedding = HuggingFaceEmbeddings(
     model_name="sentence-transformers/all-MiniLM-L6-v2"
 )
 
+
+# --------------------------------------------------
+# Groq LLM
+# --------------------------------------------------
 
 llm = ChatGroq(
     model="openai/gpt-oss-20b",
@@ -34,36 +45,115 @@ llm = ChatGroq(
 )
 
 
+# --------------------------------------------------
+# Answer Question
+# --------------------------------------------------
+
 def answer_question(user_question):
 
+    # --------------------------------------------------
     # Load ChromaDB
+    # --------------------------------------------------
+
     vectordb = Chroma(
         persist_directory=VECTORSTORE_PATH,
         collection_name="pharma_dictionary",
         embedding_function=embedding
     )
 
-    # Create retriever
-    retriever = vectordb.as_retriever(
-        search_kwargs={"k": 4}
+
+    # --------------------------------------------------
+    # Similarity Search
+    # --------------------------------------------------
+
+    results = vectordb.similarity_search_with_score(
+        user_question,
+        k=6
     )
 
-    # Retrieve relevant documents
-    documents = retriever.invoke(user_question)
 
-    # Combine retrieved chunks
-    context = "\n\n".join(
-        document.page_content
-        for document in documents
-    )
+    # --------------------------------------------------
+    # Filter relevant chunks
+    # --------------------------------------------------
 
-    # Create prompt
+    documents = []
+
+    for document, score in results:
+
+        print(
+            f"Page: {document.metadata.get('page')}, "
+            f"Score: {score}"
+        )
+
+        # Lower Chroma distance = more similar
+        if score < 0.8:
+            documents.append(document)
+
+
+    # --------------------------------------------------
+    # Fallback
+    # --------------------------------------------------
+
+    if not documents and results:
+
+        # Use the best matching document
+        documents = [results[0][0]]
+
+
+    # --------------------------------------------------
+    # Create context
+    # --------------------------------------------------
+
+    context_parts = []
+
+    for document in documents:
+
+        page = document.metadata.get("page")
+
+        page_number = (
+            page + 1
+            if page is not None
+            else "Unknown"
+        )
+
+        context_parts.append(
+            f"[Page {page_number}]\n"
+            f"{document.page_content}"
+        )
+
+
+    context = "\n\n".join(context_parts)
+
+
+    # --------------------------------------------------
+    # Generate answer
+    # --------------------------------------------------
+
     messages = prompt.invoke({
         "context": context,
         "question": user_question
     })
 
-    # Generate answer
     response = llm.invoke(messages)
 
-    return response.content
+
+    # --------------------------------------------------
+    # Extract source pages
+    # --------------------------------------------------
+
+    sources = []
+
+    for document in documents:
+
+        page = document.metadata.get("page")
+
+        if page is not None:
+
+            page_number = page + 1
+
+            if page_number not in sources:
+                sources.append(page_number)
+
+
+    return response.content, sources
+

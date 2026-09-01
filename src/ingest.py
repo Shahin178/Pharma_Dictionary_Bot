@@ -1,6 +1,6 @@
 import os
 
-from langchain_community.document_loaders import UnstructuredPDFLoader
+from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
@@ -33,12 +33,17 @@ def create_vectorstore():
 
     print("Loading Pharmacy Dictionary...")
 
-    loader = UnstructuredPDFLoader(PDF_PATH)
+    loader = PyPDFLoader(PDF_PATH)
 
     documents = loader.load()
 
-    print(f"Loaded {len(documents)} document(s)")
+    print(f"Loaded {len(documents)} pages")
 
+    # Add readable source name
+    for document in documents:
+        document.metadata["source"] = "Pharmacy Dictionary"
+
+    # Split document
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=1000,
         chunk_overlap=150
@@ -48,6 +53,7 @@ def create_vectorstore():
 
     print(f"Created {len(texts)} chunks")
 
+    # Create ChromaDB
     Chroma.from_documents(
         documents=texts,
         embedding=embedding,
