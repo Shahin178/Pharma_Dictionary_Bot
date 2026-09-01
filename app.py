@@ -12,6 +12,10 @@ st.set_page_config(
 )
 
 
+# --------------------------------------------------
+# Initialize ChromaDB
+# --------------------------------------------------
+
 @st.cache_resource
 def initialize_database():
 
@@ -28,6 +32,10 @@ def initialize_database():
 initialize_database()
 
 
+# --------------------------------------------------
+# UI
+# --------------------------------------------------
+
 st.title("💊 Pharma Dictionary Bot")
 
 st.caption(
@@ -36,19 +44,44 @@ st.caption(
 )
 
 
+# --------------------------------------------------
 # Chat history
+# --------------------------------------------------
+
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
 
+# --------------------------------------------------
 # Display previous messages
+# --------------------------------------------------
+
 for message in st.session_state.messages:
 
     with st.chat_message(message["role"]):
+
         st.markdown(message["content"])
 
+        # Show sources directly below the answer
+        if (
+            message["role"] == "assistant"
+            and message.get("sources")
+        ):
 
+            st.markdown("### 📚 Sources")
+
+            for page in message["sources"]:
+
+                st.markdown(
+                    f"- **Pharmacy Dictionary** — "
+                    f"Page **{page}**"
+                )
+
+
+# --------------------------------------------------
 # Chat input
+# --------------------------------------------------
+
 user_question = st.chat_input(
     "Ask about a pharmaceutical term..."
 )
@@ -56,7 +89,12 @@ user_question = st.chat_input(
 
 if user_question:
 
+    # --------------------------------------------------
+    # Display user question
+    # --------------------------------------------------
+
     with st.chat_message("user"):
+
         st.markdown(user_question)
 
     st.session_state.messages.append({
@@ -65,27 +103,46 @@ if user_question:
     })
 
 
+    # --------------------------------------------------
+    # Generate answer
+    # --------------------------------------------------
+
     with st.chat_message("assistant"):
 
         with st.spinner(
             "Searching the Pharmacy Dictionary..."
         ):
 
-            answer = answer_question(user_question)
+            answer, sources = answer_question(
+                user_question
+            )
 
+        # Display answer
         st.markdown(answer)
 
 
+        # --------------------------------------------------
+        # Display sources directly below answer
+        # --------------------------------------------------
+
+        if sources:
+
+            st.markdown("##### 📚 Sources")
+
+            for page in sources:
+
+                st.markdown(
+                    f"- **Pharmacy Dictionary** — "
+                    f"Page **{page}**"
+                )
+
+
+    # --------------------------------------------------
+    # Save conversation
+    # --------------------------------------------------
+
     st.session_state.messages.append({
         "role": "assistant",
-        "content": answer
+        "content": answer,
+        "sources": sources
     })
-
-
-st.divider()
-
-st.caption(
-    "⚠️ This chatbot is for educational and reference purposes only. "
-    "It should not be used as a substitute for professional "
-    "medical or pharmaceutical advice."
-)

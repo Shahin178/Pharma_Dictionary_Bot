@@ -9,4 +9,6 @@ langchain-groq
 sentence-transformers
 unstructured
 unstructured[pdf]
+pypdf
 nltk
+opencv-python-headless
